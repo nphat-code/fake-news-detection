@@ -1,0 +1,25 @@
+# VS Code specific
+.vscode/
+pyrightconfig.json
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Data (Avoid pushing large datasets to Git)
+data/raw/
+data/processed/
+*.csv
+
+# Temporary files
+*.tmp
+*.log
