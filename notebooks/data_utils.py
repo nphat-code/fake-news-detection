@@ -11,6 +11,12 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from config import MAX_TFIDF_FEATURES, POLITICAL_STOPWORDS
 
+# import DL
+import pickle
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from config import MAX_WORDS, MAX_SEQUENCE_LENGTH, TOKENIZER_PATH
+
 # Khởi tạo NLTK (Giả định bạn đã tải nltk data)
 lemmatizer = WordNetLemmatizer()
 stop_words = set(stopwords.words('english'))
@@ -158,3 +164,33 @@ def explore_processed_data(df, train_idx, test_idx):
     for col in df.columns:
         print(f"   - {col}")
     print("=" * 60 + "\n")
+    
+
+# Support DL 
+
+def prepare_dl_sequences(train_texts, test_texts, max_words=MAX_WORDS, max_len=MAX_SEQUENCE_LENGTH):
+    """
+    NLP Pipeline cho Deep Learning: 
+    1. Xây dựng bộ từ điển (Tokenizer) từ tập Train.
+    2. Biến đổi văn bản thành danh sách các số nguyên (Sequences).
+    3. Đệm (Padding) để tất cả các vector có cùng độ dài.
+    """
+    print("Đang khởi tạo Tokenizer và xây dựng bộ từ vựng...")
+    tokenizer = Tokenizer(num_words=max_words, oov_token="<OOV>")
+    tokenizer.fit_on_texts(train_texts)
+    
+    # Lưu Tokenizer để dùng cho predict sau này
+    with open(TOKENIZER_PATH, 'wb') as f:
+        pickle.dump(tokenizer, f)
+        
+    print("Đang chuyển đổi văn bản thành sequences và padding...")
+    # Chuyển text thành chuỗi số
+    X_train_seq = tokenizer.texts_to_sequences(train_texts)
+    X_test_seq = tokenizer.texts_to_sequences(test_texts)
+    
+    # Padding: Thêm số 0 vào cuối (post) nếu thiếu, cắt đuôi (post) nếu thừa
+    X_train_pad = pad_sequences(X_train_seq, maxlen=max_len, padding='post', truncating='post')
+    X_test_pad = pad_sequences(X_test_seq, maxlen=max_len, padding='post', truncating='post')
+    
+    print(f"Hoàn tất! Shape của tập Train (DL): {X_train_pad.shape}")
+    return X_train_pad, X_test_pad, tokenizer

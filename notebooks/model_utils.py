@@ -7,6 +7,10 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 from wordcloud import WordCloud
 from IPython.display import display
 
+# DL
+from sklearn.metrics import roc_curve, auc
+from sklearn.metrics import precision_recall_curve, average_precision_score
+
 # Cấu hình đồ họa chung
 sns.set(style="whitegrid")
 plt.rcParams['figure.figsize'] = (15, 10)
@@ -162,4 +166,136 @@ def plot_wordclouds(df):
     plt.imshow(wc_true, interpolation='bilinear')
     plt.axis('off')
     plt.title("WordCloud - True News", fontsize=14, fontweight='bold')
+    plt.show()
+    
+    
+# DL
+# Biểu đồ Lịch sử Huấn luyện
+def plot_dl_history(history):
+    """Vẽ biểu đồ quá trình huấn luyện (Loss & Accuracy) để kiểm tra Overfitting."""
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5))
+    
+    # Biểu đồ Accuracy
+    axes[0].plot(history.history['accuracy'], label='Train Accuracy', marker='o')
+    axes[0].plot(history.history['val_accuracy'], label='Validation Accuracy', marker='o')
+    axes[0].set_title('Mô hình Bi-LSTM Accuracy', fontweight='bold')
+    axes[0].set_xlabel('Epochs')
+    axes[0].set_ylabel('Accuracy')
+    axes[0].legend()
+    
+    # Biểu đồ Loss
+    axes[1].plot(history.history['loss'], label='Train Loss', marker='o')
+    axes[1].plot(history.history['val_loss'], label='Validation Loss', marker='o')
+    axes[1].set_title('Mô hình Bi-LSTM Loss', fontweight='bold')
+    axes[1].set_xlabel('Epochs')
+    axes[1].set_ylabel('Loss')
+    axes[1].legend()
+    
+    plt.tight_layout()
+    plt.show()
+
+# Biểu đồ so sánh đường cong ROC-AUC
+def plot_multiple_roc_auc(models_results, y_true):
+    """
+    Vẽ so sánh đường cong ROC của nhiều mô hình trên cùng một biểu đồ.
+    models_results: dict dạng {'Tên mô hình': y_pred_probs}
+    """
+    plt.figure(figsize=(10, 8))
+    
+    colors = ['darkorange', 'blue', 'green', 'red', 'purple']
+    
+    for idx, (model_name, y_pred_probs) in enumerate(models_results.items()):
+        fpr, tpr, _ = roc_curve(y_true, y_pred_probs)
+        roc_auc = auc(fpr, tpr)
+        
+        plt.plot(fpr, tpr, color=colors[idx % len(colors)], lw=2, 
+                 label=f'{model_name} (AUC = {roc_auc:.4f})')
+        
+    # Đường thẳng chéo cơ sở (Random Guess)
+    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+    
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate (FPR)', fontsize=12)
+    plt.ylabel('True Positive Rate (TPR)', fontsize=12)
+    plt.title('So sánh ROC-AUC giữa các mô hình Deep Learning', fontweight='bold', fontsize=14)
+    plt.legend(loc="lower right", fontsize=12)
+    plt.grid(True, alpha=0.3)
+    plt.show()
+  
+  # Confusion Matrix cho DL  
+def plot_dl_confusion_matrix(y_true, y_pred, model_name="Deep Learning Model"):
+    """
+    Vẽ biểu đồ Ma trận nhầm lẫn (Confusion Matrix) dạng Heatmap.
+    Giúp sinh viên phân tích số lượng dự đoán đúng/sai ở từng nhãn.
+    """
+    cm = confusion_matrix(y_true, y_pred)
+    
+    plt.figure(figsize=(6, 5))
+    # Sử dụng seaborn (đã được import sẵn trong model_utils của bạn)
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+                xticklabels=['Tin thật (0)', 'Tin giả (1)'], 
+                yticklabels=['Tin thật (0)', 'Tin giả (1)'],
+                annot_kws={"size": 14}) # Phóng to số cho dễ nhìn
+    
+    plt.title(f'Confusion Matrix - {model_name}', fontweight='bold', fontsize=14)
+    plt.ylabel('Nhãn thực tế (True Label)', fontweight='bold')
+    plt.xlabel('Nhãn dự đoán (Predicted Label)', fontweight='bold')
+    plt.tight_layout()
+    plt.show()
+    
+    
+def plot_dl_eda(df, text_col='text_clean_raw', label_col='label'):
+    """Vẽ biểu đồ phân phối Nhãn và Histogram độ dài văn bản cho DL."""
+    fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+    
+    # Biểu đồ phân phối nhãn
+    sns.countplot(x=label_col, data=df, palette='Set2', ax=axes[0])
+    axes[0].set_title('Phân phối số lượng Nhãn (Fake/True)', fontweight='bold')
+    axes[0].set_xticklabels(['Tin thật (0)', 'Tin giả (1)'])
+    
+    # Biểu đồ Histogram độ dài văn bản
+    seq_lengths = df[text_col].apply(lambda x: len(str(x).split()))
+    sns.histplot(seq_lengths, bins=50, kde=True, color='skyblue', ax=axes[1])
+    axes[1].axvline(seq_lengths.mean(), color='r', linestyle='--', label=f'Trung bình: {int(seq_lengths.mean())} từ')
+    axes[1].axvline(300, color='g', linestyle='-', linewidth=2, label='Ngưỡng MAX_LEN=300')
+    axes[1].set_title('Histogram Độ dài văn bản', fontweight='bold')
+    axes[1].set_xlim(0, 1000) # Chỉ hiển thị đến 1000 từ cho dễ nhìn
+    axes[1].legend()
+    
+    plt.tight_layout()
+    plt.show()
+
+def plot_pr_curve(y_true, y_pred_probs, model_name="Bi-LSTM"):
+    """Vẽ đường cong Precision-Recall."""
+    precision, recall, _ = precision_recall_curve(y_true, y_pred_probs)
+    ap = average_precision_score(y_true, y_pred_probs)
+    
+    plt.figure(figsize=(8, 6))
+    plt.plot(recall, precision, color='purple', lw=2, label=f'PR curve (AP = {ap:.4f})')
+    plt.xlabel('Recall', fontsize=12)
+    plt.ylabel('Precision', fontsize=12)
+    plt.title(f'Precision-Recall Curve - {model_name}', fontweight='bold', fontsize=14)
+    plt.legend(loc="lower left")
+    plt.grid(True, alpha=0.3)
+    plt.show()
+
+def plot_prediction_confidence(y_true, y_pred_probs, model_name="Bi-LSTM"):
+    """Vẽ Histogram độ tự tin của mô hình."""
+    plt.figure(figsize=(10, 6))
+    
+    # Tách xác suất của các bài thực sự là Tin Thật (0) và Tin Giả (1)
+    probs_true_class = y_pred_probs[y_true == 0]
+    probs_fake_class = y_pred_probs[y_true == 1]
+    
+    sns.histplot(probs_true_class, color="green", kde=True, stat="density", bins=50, label='Thực tế: Tin Thật', alpha=0.6)
+    sns.histplot(probs_fake_class, color="red", kde=True, stat="density", bins=50, label='Thực tế: Tin Giả', alpha=0.6)
+    
+    plt.axvline(0.5, color='black', linestyle='--', label='Ngưỡng quyết định (0.5)')
+    plt.xlabel('Xác suất dự đoán (Dự đoán là Tin Giả)', fontsize=12)
+    plt.ylabel('Mật độ', fontsize=12)
+    plt.title(f'Phân phối Độ Tự Tin Dự Đoán (Confidence) - {model_name}', fontweight='bold', fontsize=14)
+    plt.legend()
+    plt.xlim(0, 1)
+    plt.grid(True, alpha=0.3)
     plt.show()
