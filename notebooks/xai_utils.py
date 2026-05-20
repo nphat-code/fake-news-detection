@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import os
 
 def explain_with_lime(text_instance, model, vectorizer, class_names=['True News (0)', 'Fake News (1)']):
     """Sử dụng LIME để giải thích quyết định của mô hình trên một bài báo cụ thể."""
@@ -53,6 +54,49 @@ def explain_with_lime(text_instance, model, vectorizer, class_names=['True News 
     plt.show()
     
     return exp
+
+def export_batch_lime_to_csv(error_df, model, vectorizer, output_path, class_names=['True News (0)', 'Fake News (1)']):
+    """Chạy LIME tự động cho nhiều mẫu dữ liệu và xuất kết quả phân tích từ khóa ra file CSV."""
+    print(f"\n⏳ Đang chạy phân tích LIME hàng loạt cho {len(error_df)} bài báo (Vui lòng đợi vài giây)...")
+    
+    def predictor_fn(texts):
+        features = vectorizer.transform(texts)
+        return model.predict_proba(features)
+    
+    explainer = lime.lime_text.LimeTextExplainer(class_names=class_names)
+    results = []
+    
+    for idx, row in error_df.iterrows():
+        text_instance = row['Clean_Text']
+        
+        if not isinstance(text_instance, str) or len(text_instance.strip()) == 0:
+            continue
+            
+        exp = explainer.explain_instance(text_instance, predictor_fn, num_features=10)
+        probs = predictor_fn([text_instance])[0]
+        exp_list = exp.as_list()
+        
+        fake_words = [f"{word} ({weight:.3f})" for word, weight in exp_list if weight > 0]
+        true_words = [f"{word} ({weight:.3f})" for word, weight in exp_list if weight < 0]
+        
+        results.append({
+            'Index_Gốc': idx,
+            'Nhãn_Thực_Tế': 'True News' if row['True Label'] == 0 else 'Fake News',
+            'Mô_Hình_Đoán': 'Fake News' if row['Predicted'] == 1 else 'True News',
+            'Loại_Lỗi': 'False Positive' if row['True Label'] == 0 else 'False Negative',
+            'Xác_Suất_Fake(%)': round(probs[1] * 100, 2),
+            'Từ_Khóa_Kéo_Về_Fake': " | ".join(fake_words),
+            'Từ_Khóa_Kéo_Về_True': " | ".join(true_words),
+            'Tiêu_Đề_Bài_Báo': row['Title']
+        })
+        
+    results_df = pd.DataFrame(results)
+    
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    results_df.to_csv(output_path, index=False, encoding='utf-8-sig')
+    print(f"✅ Đã phân tích xong! File CSV báo cáo được lưu tại: {output_path}")
+    
+    return results_df
 
 def explain_with_shap(model, vectorizer, X_sample):
     """Sử dụng SHAP để trực quan hóa ảnh hưởng của từ khóa trên toàn bộ mẫu dữ liệu."""

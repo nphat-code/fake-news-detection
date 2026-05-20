@@ -11,7 +11,7 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from config import MAX_TFIDF_FEATURES, POLITICAL_STOPWORDS
 
-# Khởi tạo NLTK (Giả định bạn đã tải nltk data)
+# Khởi tạo NLTK
 lemmatizer = WordNetLemmatizer()
 stop_words = set(stopwords.words('english'))
 stop_words.update(POLITICAL_STOPWORDS)
@@ -35,7 +35,7 @@ def lemmatize_and_remove_stopwords(text):
     clean_words = [lemmatizer.lemmatize(word) for word in words if word not in stop_words]
     return " ".join(clean_words)
 
-def remove_data_leakage_from_test(df, train_idx, test_idx, clean_col='text_only_clean', threshold=0.90):
+def remove_data_leakage_from_test(df, train_idx, test_idx, clean_col='text_clean', threshold=0.90):
     """
     Kiểm tra rò rỉ bằng Hash và Cosine Similarity.
     Trả về test_idx đã được làm sạch (loại bỏ các mẫu >= threshold).
@@ -175,8 +175,7 @@ def explore_processed_data(df, train_idx, test_idx):
     
     print(f"\n4. Kiểm tra chất lượng dữ liệu cuối:")
     missing = df.isnull().sum().sum()
-    # Kiểm tra xem cột text_only_clean có tồn tại để check trùng lặp không
-    clean_col = 'text_only_clean' if 'text_only_clean' in df.columns else df.columns[0]
+    clean_col = 'text_clean' if 'text_clean' in df.columns else df.columns[0]
     dups = df.duplicated(subset=[clean_col]).sum()
     
     print(f"   - Số lượng giá trị thiếu (Null/NaN): {missing} -> {'ĐẠT' if missing == 0 else 'CẢNH BÁO'}")

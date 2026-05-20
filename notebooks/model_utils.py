@@ -8,7 +8,7 @@ from wordcloud import WordCloud
 from IPython.display import display
 
 # Cấu hình đồ họa chung
-sns.set(style="whitegrid")
+sns.set_theme(style="whitegrid")
 plt.rcParams['figure.figsize'] = (15, 10)
 
 def plot_eda(df):
@@ -17,7 +17,7 @@ def plot_eda(df):
     true_count = len(df[df['label'] == 0])
     fake_count = len(df[df['label'] == 1])
     
-    df['text_length'] = df['text_only_clean'].apply(lambda x: len(str(x).split()))
+    df['text_length'] = df['text_clean'].apply(lambda x: len(str(x).split()))
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     
     sns.countplot(x='label', hue='label', data=df, palette='Set2', ax=axes[0, 0], order=[0, 1])
@@ -57,20 +57,20 @@ def train_and_evaluate_model(model, model_name, X_train, y_train, X_test, y_test
     plt.show()
     return acc, report
 
-def display_comparison_report(model_name, acc_title_text, report_title_text, acc_text_only, report_text_only, acc_title_only, report_title_only):
-    """In bảng so sánh 3 kịch bản text"""
+def display_comparison_report(model_name, acc_title_text, report_title_text, acc_text, report_text, acc_title, report_title):
+    """In bảng so sánh 3 kịch bản: Title + Text, Text và Title"""
     print("=" * 95)
     print(f"{f'SO SÁNH MÔ HÌNH: {model_name}':^95}")
     print("=" * 95)
-    print(f"{'Chỉ số (Metric)':<25} {'Title + Text':>20} {'Text Only':>20} {'Title Only':>20}")
+    print(f"{'Chỉ số (Metric)':<25} {'Title + Text':>20} {'Text':>20} {'Title':>20}")
     print("-" * 95)
     
     for cls, name in [('0', 'Tin thật'), ('1', 'Tin giả')]:
-        print(f"{f'{name} Precision':<25} {report_title_text[cls]['precision']:>20.3f} {report_text_only[cls]['precision']:>20.3f} {report_title_only[cls]['precision']:>20.3f}")
-        print(f"{f'{name} Recall':<25} {report_title_text[cls]['recall']:>20.3f} {report_text_only[cls]['recall']:>20.3f} {report_title_only[cls]['recall']:>20.3f}")
-        print(f"{f'{name} F1-score':<25} {report_title_text[cls]['f1-score']:>20.3f} {report_text_only[cls]['f1-score']:>20.3f} {report_title_only[cls]['f1-score']:>20.3f}")
+        print(f"{f'{name} Precision':<25} {report_title_text[cls]['precision']:>20.3f} {report_text[cls]['precision']:>20.3f} {report_title[cls]['precision']:>20.3f}")
+        print(f"{f'{name} Recall':<25} {report_title_text[cls]['recall']:>20.3f} {report_text[cls]['recall']:>20.3f} {report_title[cls]['recall']:>20.3f}")
+        print(f"{f'{name} F1-score':<25} {report_title_text[cls]['f1-score']:>20.3f} {report_text[cls]['f1-score']:>20.3f} {report_title[cls]['f1-score']:>20.3f}")
         print("-" * 95)
-    print(f"{'Độ chính xác (Accuracy)':<25} {acc_title_text:>20.3f} {acc_text_only:>20.3f} {acc_title_only:>20.3f}\n")
+    print(f"{'Độ chính xác (Accuracy)':<25} {acc_title_text:>20.3f} {acc_text:>20.3f} {acc_title:>20.3f}\n")
 
 def plot_top_features(vectorizer, model, model_name, top_n=20):
     """Hàm vẽ biểu đồ Top Features"""
@@ -100,6 +100,7 @@ def analyze_errors(df, test_idx, y_test, y_pred):
     error_df = pd.DataFrame({
         'Title': df.loc[test_idx, 'title'],
         'Text': df.loc[test_idx, 'text'],
+        'Clean_Text': df.loc[test_idx, 'title_text_clean'],
         'True Label': y_test,
         'Predicted': y_pred
     })
@@ -108,10 +109,13 @@ def analyze_errors(df, test_idx, y_test, y_pred):
     fn = errors[(errors['True Label'] == 1) & (errors['Predicted'] == 0)]
     
     print(f"Tổng số sai: {len(errors)} | False Positives: {len(fp)} | False Negatives: {len(fn)}")
-    print("\n📌 TOP 10 FALSE POSITIVES:")
-    display(fp.head(10))
-    print("\n📌 TOP 10 FALSE NEGATIVES:")
-    display(fn.head(10))
+    print("\n📌 TOP 10 FALSE POSITIVES (Thật đoán thành Giả):")
+    display(fp[['Title', 'Text', 'True Label', 'Predicted']].head(10))
+    print("\n📌 TOP 10 FALSE NEGATIVES (Giả đoán thành Thật):")
+    display(fn[['Title', 'Text', 'True Label', 'Predicted']].head(10))
+    
+    # Trả về 2 dataframe top 10 để chạy LIME
+    return fp.head(10), fn.head(10)
 
 def generate_metrics_summary(results_list, output_path='../results/model_metrics_summary.csv'):
     """
