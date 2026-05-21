@@ -11,6 +11,7 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from config import MAX_TFIDF_FEATURES, POLITICAL_STOPWORDS
 
+
 # import DL
 import pickle
 from tensorflow.keras.preprocessing.text import Tokenizer
@@ -18,6 +19,7 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 from config import MAX_WORDS, MAX_SEQUENCE_LENGTH, TOKENIZER_PATH
 
 # Khởi tạo NLTK (Giả định bạn đã tải nltk data)
+
 lemmatizer = WordNetLemmatizer()
 stop_words = set(stopwords.words('english'))
 stop_words.update(POLITICAL_STOPWORDS)
@@ -41,27 +43,55 @@ def lemmatize_and_remove_stopwords(text):
     clean_words = [lemmatizer.lemmatize(word) for word in words if word not in stop_words]
     return " ".join(clean_words)
 
-def check_data_leakage(df, train_idx, test_idx, clean_col='text_only_clean'):
-    """Kiểm tra rò rỉ dữ liệu bằng Hash và Cosine Similarity"""
+def remove_data_leakage_from_test(df, train_idx, test_idx, clean_col='text_clean', threshold=0.90):
+    """
+    Kiểm tra rò rỉ bằng Hash và Cosine Similarity.
+    Trả về test_idx đã được làm sạch (loại bỏ các mẫu >= threshold).
+    """
+    print("======================================================")
+    print("   KIỂM TRA VÀ XỬ LÝ DATA LEAKAGE (TRAIN vs TEST)     ")
+    print("======================================================")
+    
     train_texts = df.loc[train_idx, clean_col].values
     test_texts = df.loc[test_idx, clean_col].values
+    print(f"Kích thước tập Test ban đầu: {len(test_idx)} mẫu")
 
+    # 1. KIỂM TRA HASH (Trùng lặp 100%)
     def get_md5_hash(text):
         return hashlib.md5(str(text).encode('utf-8')).hexdigest()
 
     train_hashes = set([get_md5_hash(text) for text in train_texts])
     test_hashes = set([get_md5_hash(text) for text in test_texts])
     hash_overlap = train_hashes.intersection(test_hashes)
-    print(f" -> Số bài báo trùng lặp hoàn toàn (Hash Overlap): {len(hash_overlap)}")
+    print(f" -> [MD5] Số bài báo trùng lặp hoàn toàn 100%: {len(hash_overlap)}")
 
+    # 2. KIỂM TRA COSINE SIMILARITY
+    print(" -> Đang vector hóa dữ liệu để kiểm tra Cosine Similarity...")
     sim_vec = TfidfVectorizer(max_features=5000) 
     train_matrix = sim_vec.fit_transform(train_texts)
     test_matrix = sim_vec.transform(test_texts)
+    
+    print(" -> Đang tính toán ma trận tương đồng...")
     similarity_matrix = cosine_similarity(test_matrix, train_matrix)
     
-    THRESHOLD = 0.90
-    near_but_not_exact = np.where((similarity_matrix > THRESHOLD) & (similarity_matrix < 0.99))
-    print(f" -> Số cặp bài báo 'gần trùng' (Giống nhau 90% - 99%): {len(near_but_not_exact[0])}")
+    # Lấy giá trị tương đồng cao nhất của mỗi mẫu Test
+    max_sim_per_test = similarity_matrix.max(axis=1)
+    
+    near_duplicates_count = ((max_sim_per_test >= threshold) & (max_sim_per_test < 0.999)).sum()
+    print(f" -> [Cosine] Số cặp bài báo 'gần trùng' (>= {threshold*100}%): {near_duplicates_count}")
+    
+    # 3. LỌC BỎ CÁC MẪU RÒ RỈ
+    safe_mask = max_sim_per_test < threshold
+    
+    # Lấy ra các index an toàn (không bị trùng lặp)
+    test_idx_clean = test_idx[safe_mask]
+    
+    print("------------------------------------------------------")
+    print(f" ĐÃ LÀM SẠCH! Kích thước tập Test hiện tại: {len(test_idx_clean)} mẫu")
+    print(f" Số mẫu rò rỉ đã bị loại bỏ: {len(test_idx) - len(test_idx_clean)} mẫu")
+    print("======================================================")
+    
+    return test_idx_clean
 
 def extract_meta_features(text_series):
     """Tính toán các đặc trưng thủ công"""
@@ -153,8 +183,7 @@ def explore_processed_data(df, train_idx, test_idx):
     
     print(f"\n4. Kiểm tra chất lượng dữ liệu cuối:")
     missing = df.isnull().sum().sum()
-    # Kiểm tra xem cột text_only_clean có tồn tại để check trùng lặp không
-    clean_col = 'text_only_clean' if 'text_only_clean' in df.columns else df.columns[0]
+    clean_col = 'text_clean' if 'text_clean' in df.columns else df.columns[0]
     dups = df.duplicated(subset=[clean_col]).sum()
     
     print(f"   - Số lượng giá trị thiếu (Null/NaN): {missing} -> {'ĐẠT' if missing == 0 else 'CẢNH BÁO'}")

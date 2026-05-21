@@ -20,7 +20,7 @@ EPOCHS = 10                  # Số vòng lặp huấn luyện tối đa
 # Đường dẫn lưu file DL
 DL_PROCESSED_DATA_PATH = '../data/processed/dl_processed_data.csv'
 
-DL_MODEL_PATH = '../data/processed/bilstm_fake_news_model.keras'
-CNN_MODEL_PATH = '../data/processed/cnn_fake_news_model.keras'
+BILSTM_MODEL_PATH = '../models/bilstm_fake_news_model.keras'
+CNN_MODEL_PATH = '../models/cnn_fake_news_model.keras'
 
-TOKENIZER_PATH = '../data/processed/tokenizer.pkl'
+TOKENIZER_PATH = '../models/tokenizer.pkl'
